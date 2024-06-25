@@ -1,13 +1,13 @@
 # Macros
 
-# Macro to print a string
+# Macro para terminar programa
 
 .macro exit
 	li $v0 10
 	syscall
 .end_macro 
 
-
+# Macro para imprimir string
 .macro printString %memoryAddress
 	li $v0 4
 	la $a0 %memoryAddress
@@ -21,27 +21,29 @@
     syscall
 .end_macro
 
-
+# Macro para leer strings
 .macro read_string(%len)
     li $v0, 8
-    move $s7, $a0 #string saved on $s7
+    move $s7, $a0 # Salva String en $t7
     li $a1, %len
     syscall
 .end_macro
 
+# Macro para leer numero
 .macro read_int (%register)
 	li $v0 5
 	syscall
-	move %register $v0 #save int on %num
+	move %register $v0 # Salva string en el registro pasado como parametro
 .end_macro
 	
-
+# Macro de imprimir nueva linea
 .macro print_newline
     li $v0, 4
     la $a0, newline
     syscall
 .end_macro
 
+# Macro para imprimir mensaje de invalid option
 .macro invalidInput 
   printString(invalid_option)
 .end_macro 
@@ -49,21 +51,19 @@
 
 # Data section
 .data
-    newline: .asciiz "\n"
-    input: .space 20
-    output: .space 40
-    decimal: .space 20
-    binary: .space 33
-    octal: .space 12
-    hexadecimal: .space 9
-    menu_option: .asciiz "Select what you want to transform to: \n"
+    #SPACES
+    binary: .space #Reserva 33 espacios para el binario 32 bits + null
+    octal: .space 12 #Reserva 12 espacios para el octal 11 + null
+    hexadecimal: .space 9 #Reserva 9 espacios para hexadecimal 8 + null
     
+    #ASCIIZ
+    newline: .asciiz "\n"
+    menu_option: .asciiz "Select what you want to transform to: \n"
     enter_decimal: .asciiz "Enter a decimal number: "
     enter_binary: .asciiz "Enter a binary number: "
     enter_octal: .asciiz "Enter an octal number: "
     enter_hexadecimal: .asciiz "Enter a hexadecimal number: "
     invalid_option: .asciiz "Invalid option\n"
- 
     inputDecimal: .asciiz "1. Decimal\n"
     inputBinary: .asciiz "2. Binary\n"
     inputOctal: .asciiz "3. Octal\n"
@@ -77,8 +77,9 @@
 
 # Code section
 .text
+
+#Primer menu, le pide al usuario que haga escoja en que formato va a estar el numero a convertir
 menu1:
-	#li $t3, 0       # resultado
 	printString(inputChooseNumber)
 	printString(inputDecimal)
 	printString(inputBinary)
@@ -88,8 +89,10 @@ menu1:
 	printString(option7)
 	
 	printString(arrow)
+	
 	#Guardamos la opcion en $t0 (Tipo de numero del input)
 	read_int($t0) 
+	
 	#Opciones
 	beq $t0, 1, inputDecimalLogic
 	beq $t0, 2, inputBinaryLogic
@@ -101,6 +104,7 @@ menu1:
 	bgt $t0, 7 invalid
 	j menu1
 	
+#Muestra opciones de a que tipo de numero se convertira el numero	
  menu2:
  	printString(menu_option)
  	printString(inputDecimal)
@@ -119,46 +123,51 @@ menu1:
 	#beq $t1, 3, toOctal
 	#beq $t1, 4, toHex
 	#beq $t1, 5, toDecimalEm
-	#beq $t1, 7, exit
+	beq $t1, 7, exit
+	bgt $t1,7,invalid
+	blez $t1,invalid
  	
  invalid:
  	printString(invalid_option)
  	j menu1
  	
 #Convertimos todos a decimal y los guardamos en $t3
+
+#De decimal a decimal
 inputDecimalLogic:
 	printString(enter_decimal)
 	read_int($t2)
 	move $t3, $t2
 	b menu2
-	 
+
+#Logica de Binario a decimal	 
 inputBinaryLogic:
 	 printString(enter_binary)
-    li $v0, 8             # syscall for read_string
-    la $a0, binary        # Load address to store user input
-    li $a1, 32            # Maximum number of characters to read
+    li $v0, 8             
+    la $a0, binary        
+    li $a1, 32            # Agrega el numero maximo de caracteres a leer
     syscall
     b binaryToDecimal
 
 binaryToDecimal:
-    li $t3, 0             # Initialize $t3 to store decimal result
-    la $t6, binary        # Pointer to the input string
+    li $t3, 0             # Inicializa $t3 a 0 para no arrastrar ningun valor
+    la $t6, binary        # Apuntador al string binario
     
 binaryToDecimalLoop:
-    lb $t5, 0($t6)        # Load the current character from binary input
-    beqz $t5, binaryDone  # If null terminator, exit loop
+    lb $t5, 0($t6)        # Navegar en el string
+    beqz $t5, binaryDone  # Si es nul, exit
     
-    sub $t5, $t5, '0'     # Convert ASCII '0' or '1' to integer
-    blt $t5, 0, invalid_binary_char # Check if conversion went below 0
-    bgt $t5, 1, invalid_binary_char # Check if conversion went above 1
+    sub $t5, $t5, '0'     # Convierte ASCII '0' o '1' a integer
+    blt $t5, 0, invalid_binary_char 
+    bgt $t5, 1, invalid_binary_char 
 
-    # Shift $t3 left by 1 (equivalent to multiplying by 2)
+    # Shift $t3 izquierdo por 1
     sll $t3, $t3, 1       
 
-    # Add current binary digit to $t3
+    # Agrega el binario actual 
     addu $t3, $t3, $t5
 
-    # Move to the next character
+    # Siguiente caracter
     addi $t6, $t6, 1      
     j binaryToDecimalLoop
 
@@ -167,62 +176,65 @@ binaryDone:
 
 
 invalid_binary_char:
-    printString(invalid_option) # Print invalid option message
+    printString(invalid_option)
     j menu1
 
- inputOctalLogic:
+
+#Logica para conversion de Octal a decimal
+inputOctalLogic:
     printString(enter_octal)
-    li $v0, 8          # Read string syscall
-    la $a0, octal      # Address of input buffer
-    li $a1, 12         # Maximum length to read (including null terminator)
+    li $v0, 8          
+    la $a0, octal      
+    li $a1, 12         # Maximo de caracteres a leer
     syscall
     j octalToDecimal
 
 octalToDecimal:
-    la $t6, octal      # Pointer to the input string
-    li $t3, 0          # Initialize $t3 to store the decimal result
-    li $t4, 0          # Initialize loop counter
+    la $t6, octal      # Apuntador al string octal
+    li $t3, 0          # Inicializamos $t3 a 0 para no arrastrar valores, $t3 sera nuestro resultado
+    li $t4, 0          # Contador de loop
 
 OctalToDecimalLoop:
-    lb $t5, 0($t6)     # Load the current character from the octal input
+    lb $t5, 0($t6)     # Carga el caracter original del input 
     beqz $t5, menu2    # If null terminator, exit loop
     
-    sub $t5, $t5, '0'  # Convert ASCII '0' to '7' to integer
-    blt $t5, 0, invalid_octal_char # If $t5 < 0, it's an invalid digit
-    bgt $t5, 7, invalid_octal_char # If $t5 > 7, it's an invalid digit
+    sub $t5, $t5, '0'  # Convierte ASCII '0' o '7' a integer
+    blt $t5, 0, invalid_octal_char # Si $t5 < 0, es invalido
+    bgt $t5, 7, invalid_octal_char # Si $t5 > 7, es invalido
 
-    # Shift current result to left by 3 (multiply by 8)
+    # Shift left 3 bits
     sll $t3, $t3, 3    
 
-    # Add current digit to the result
+    # Agregamos el bit actual a la respuesta
     addu $t3, $t3, $t5 
 
-    # Move to the next character
+    # Siguiente
     addi $t6, $t6, 1   
     j OctalToDecimalLoop
 
 invalid_octal_char:
-    printString(invalid_option) # Print invalid option message
-    j menu1  # Go back to the main menu
-    
+    printString(invalid_option) 
+    j menu1  
+
+#Logica para convertir de hexadecimal a decimal    
 inputHexLogic:
     printString(enter_hexadecimal)
-    li $v0, 8           # Read string syscall
-    la $a0, hexadecimal # Address of input buffer
-    li $a1, 9           # Maximum length to read (including null terminator)
+    li $v0, 8           
+    la $a0, hexadecimal 
+    li $a1, 9           # Maximo de caracteres a leer
     syscall
     j hexToDecimal
 
 hexToDecimal:
-    la $t6, hexadecimal # Pointer to the input string
-    li $t3, 0           # Initialize $t3 to store the decimal result
-    li $t4, 0           # Initialize loop counter
+    la $t6, hexadecimal # Apuntador al string hexadecimal
+    li $t3, 0           # Inicializamos $t3 a cero para no arrastrar ningun valor, $t3 sera el resultado
+    li $t4, 0           # Inicializa el counter de loop
 
 hexToDecimalLoop:
-    lb $t5, 0($t6)      # Load the current character from the hex input
-    beqz $t5, menu2     # If null terminator, exit loop
+    lb $t5, 0($t6)      #  Carga el primer caracter 
+    beqz $t5, menu2     
     
-    # Convert ASCII character to integer value
+    # Convierte ASCII a integer 
     li $t7, 48          # ASCII '0'
     li $t8, 57          # ASCII '9'
     li $t9, 65          # ASCII 'A'
@@ -230,33 +242,33 @@ hexToDecimalLoop:
     li $s1, 97          # ASCII 'a'
     li $s2, 102         # ASCII 'f'
 
-    blt $t5, $t7, invalid_hex_char   # If character < '0'
-    bgt $t5, $s2, invalid_hex_char   # If character > 'f'
+    blt $t5, $t7, invalid_hex_char   # Si caracter < '0'
+    bgt $t5, $s2, invalid_hex_char   # Si caracter > 'f'
 
-    # Convert digit or letter to integer
-    blt $t5, $t8, convert_hex_digit  # '0' to '9'
-    blt $t5, $s1, convert_hex_upper  # 'A' to 'F'
-    sub $t5, $t5, 87                 # 'a' to 'f': ASCII - 87
+    # Convierte digito o letra a integer
+    blt $t5, $t8, convert_hex_digit  # '0' a '9'
+    blt $t5, $s1, convert_hex_upper  # 'A' a 'F'
+    sub $t5, $t5, 87                 # 'a' a'f': ASCII - 87 por posiciones del ascii
 
     j add_hex_to_result
 
 convert_hex_digit:
-    sub $t5, $t5, 48   # Convert '0'-'9' to 0-9
+    sub $t5, $t5, 48   # Convierte '0'-'9' a 0-9
     j add_hex_to_result
 
 convert_hex_upper:
-    sub $t5, $t5, 55   # Convert 'A'-'F' to 10-15
+    sub $t5, $t5, 55   # Convierte'A'-'F' a 10-15
 
 add_hex_to_result:
-    sll $t3, $t3, 4    # Shift current result left by 4 (multiply by 16)
-    or $t3, $t3, $t5   # Add the current digit to the result
+    sll $t3, $t3, 4    # Shift izquierdo resultado  4 bits 
+    or $t3, $t3, $t5   # Agrego el bit actual al resultado
 
-    addi $t6, $t6, 1   # Move to the next character
+    addi $t6, $t6, 1   # Siguiente caracter
     j hexToDecimalLoop
 
 invalid_hex_char:
-    printString(invalid_option) # Print invalid option message
-    j menu1  # Go back to the main menu
+    printString(invalid_option) 
+    j menu1  
 
 fin:
 
