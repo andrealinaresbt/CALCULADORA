@@ -52,7 +52,7 @@
 # Data section
 .data
     #SPACES
-    binary: .space #Reserva 33 espacios para el binario 32 bits + null
+    binary: .space 33 #Reserva 33 espacios para el binario 32 bits + null
     octal: .space 12 #Reserva 12 espacios para el octal 11 + null
     hexadecimal: .space 9 #Reserva 9 espacios para hexadecimal 8 + null
     
@@ -123,7 +123,7 @@ menu1:
 	#beq $t1, 3, toOctal
 	#beq $t1, 4, toHex
 	#beq $t1, 5, toDecimalEm
-	beq $t1, 7, exit
+	beq $t1, 7, fin
 	bgt $t1,7,invalid
 	blez $t1,invalid
  	
