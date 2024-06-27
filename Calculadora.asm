@@ -55,6 +55,8 @@
     binary: .space 33 #Reserva 33 espacios para el binario 32 bits + null
     octal: .space 12 #Reserva 12 espacios para el octal 11 + null
     hexadecimal: .space 9 #Reserva 9 espacios para hexadecimal 8 + null
+    int_string: .space 33 #Reserva 20 espacios para transformar un entero a string
+    int_stringINV: .space 33 #Reserva 20 espacios para transformar un entero a string
     
     #ASCIIZ
     newline: .asciiz "\n"
@@ -106,6 +108,8 @@ menu1:
 	
 #Muestra opciones de a que tipo de numero se convertira el numero	
  menu2:
+ 	printString(int_string)
+ 	print_newline
  	printString(menu_option)
  	printString(inputDecimal)
 	printString(inputBinary)
@@ -126,19 +130,55 @@ menu1:
 	beq $t1, 7, fin
 	bgt $t1,7,invalid
 	blez $t1,invalid
- 	
+	
+#Conversiones a String
+ intToString:
+	li $t7 0
+	li $t6 1 #indice en el string
+	bltz $t2 negativo
+	
+	positivo:
+		li $t4 '+'
+		sb $t4 int_string($t7)
+		b intToString2
+	negativo:
+		li $t4 '-'
+		sb $t4 int_string($t7)
+		mul $t2 $t2 -1
+		b intToString2
+intToString2:
+	# Convertir el n�mero en $t3 a string
+    	li $t5, 10     # Divisor para obtener cada d�gito
+    	div $t2 $t5
+    	mfhi $t9       # Obtiene el residuo (el d�gito actual)
+    	mflo $t2	#se actualiza el valor de $t3 (resultado)
+    	addi $t9, $t9, '0'  # Convierte el d�gito a su valor ASCII
+    	sb $t9 int_stringINV($t7)
+    	addi $t7 $t7 1
+    	beqz $t2 intToString3
+    	b intToString2
+    	
+intToString3:
+	addi $t7 $t7 -1
+	lb $t9 int_stringINV($t7)
+	sb $t9 int_string($t6)
+	addi $t6 $t6 1
+	beqz $t7 menu2
+
+	b intToString3
+    	
+	
  invalid:
  	printString(invalid_option)
  	j menu1
  	
-#Convertimos todos a decimal y los guardamos en $t3
 
 #De decimal a decimal
 inputDecimalLogic:
 	printString(enter_decimal)
 	read_int($t2)
 	move $t3, $t2
-	b menu2
+	b intToString
 
 #Logica de Binario a decimal	 
 inputBinaryLogic:
@@ -155,11 +195,11 @@ binaryToDecimal:
     
 binaryToDecimalLoop:
     lb $t5, 0($t6)        # Navegar en el string
-    beqz $t5, binaryDone  # Si es nul, exit
+    beqz $t5, binaryDone  # Si es null, exit
     
     sub $t5, $t5, '0'     # Convierte ASCII '0' o '1' a integer
-    blt $t5, 0, invalid_binary_char 
-    bgt $t5, 1, invalid_binary_char 
+    #blt $t5, 0, invalid_binary_char 
+    #bgt $t5, 1, invalid_binary_char 
 
     # Shift $t3 izquierdo por 1
     sll $t3, $t3, 1       
@@ -172,7 +212,8 @@ binaryToDecimalLoop:
     j binaryToDecimalLoop
 
 binaryDone:
-    b menu2
+    move $t2, $t3
+    b intToString
 
 
 invalid_binary_char:
@@ -196,7 +237,7 @@ octalToDecimal:
 
 OctalToDecimalLoop:
     lb $t5, 0($t6)     # Carga el caracter original del input 
-    beqz $t5, menu2    # If null terminator, exit loop
+    beqz $t5, intToString    
     
     sub $t5, $t5, '0'  # Convierte ASCII '0' o '7' a integer
     blt $t5, 0, invalid_octal_char # Si $t5 < 0, es invalido
@@ -232,7 +273,7 @@ hexToDecimal:
 
 hexToDecimalLoop:
     lb $t5, 0($t6)      #  Carga el primer caracter 
-    beqz $t5, menu2     
+    beqz $t5, intToString     
     
     # Convierte ASCII a integer 
     li $t7, 48          # ASCII '0'
