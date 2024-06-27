@@ -155,7 +155,7 @@ binaryToDecimal:
     
 binaryToDecimalLoop:
     lb $t5, 0($t6)        # Navegar en el string
-    beqz $t5, binaryDone  # Si es nul, exit
+    beqz $t5, binaryDone  # Si es null, exit
     
     sub $t5, $t5, '0'     # Convierte ASCII '0' o '1' a integer
     blt $t5, 0, invalid_binary_char 
@@ -196,7 +196,7 @@ octalToDecimal:
 
 OctalToDecimalLoop:
     lb $t5, 0($t6)     # Carga el caracter original del input 
-    beqz $t5, menu2    # If null terminator, exit loop
+    beqz $t5, menu2    
     
     sub $t5, $t5, '0'  # Convierte ASCII '0' o '7' a integer
     blt $t5, 0, invalid_octal_char # Si $t5 < 0, es invalido
