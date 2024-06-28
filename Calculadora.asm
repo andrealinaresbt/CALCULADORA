@@ -45,6 +45,35 @@
   printString(invalid_option)
 .end_macro 
 
+.macro ReverseString %inputAddr
+    la $a0, %inputAddr  # Cargar la dirección de la cadena de entrada
+    la $a1, output     # Cargar la dirección de la cadena de salida (output)
+    
+    strlen:
+    move $v0, $zero        # Inicializa $v0 a 0 para contar la longitud de la cadena
+    move $t0, $a0          # Copia la dirección base de la cadena en $t0
+    li $t2 0		#Apuntador a la posicion de output
+
+    strlen_loop:
+        lb $t1, ($t0)      # Carga el byte actual de la cadena
+        beqz $t1, invLoop   # Salta si encuentra el terminador nulo
+        addi $t0, $t0, 1   # Avanza al siguiente byte de la cadena
+        addi $v0, $v0, 1   # Incrementa el contador de longitud
+        j strlen_loop      # Repite el bucle
+        
+    invLoop:
+    	addi $v0 $v0 -1
+    	bltz $v0 endInv
+        lb $t3 %inputAddr($v0)
+        sb $t3 output($t2)
+        addi $t2 $t2 1
+        b invLoop
+       
+    endInv:
+    	li $t3 0
+        sb $t3 output($t2)
+.end_macro
+
 
 # Data section
 .data
@@ -54,6 +83,8 @@
     hexadecimal: .space 9 #Reserva 9 espacios para hexadecimal 8 + null
     int_string: .space 33 #Reserva 20 espacios para transformar un entero a string
     int_stringINV: .space 33 #Reserva 20 espacios para transformar un entero a string
+    binary_result : .space 33
+    output: .space 33 #esta es la salida usada en el macro ReverseString
     
     #ASCIIZ
     newline: .asciiz "\n"
@@ -72,6 +103,8 @@
     option7: .asciiz "7. Exit\n"
     arrow: .asciiz "----> "
     inputChooseNumber: .asciiz "Please enter the option of the type of number you wish to transform\n"
+    result: .asciiz "The result number is: "
+   
     
 
 # Code section
@@ -119,11 +152,11 @@ menu1:
     #Guardamos la opcion en $t1 (Tipo de numero a convertir)
     read_int($t1) 
     
-    #beq $t1, 1, toDecimal
-    #beq $t1, 2, toBinary
-    #beq $t1, 3, toOctal
-    #beq $t1, 4, toHex
-    #beq $t1, 5, toDecimalEm
+    beq $t1, 1, DecimalToDecimal
+    beq $t1, 2, DecimalToBinary
+    beq $t1, 3, DecimalToOctal
+    beq $t1, 4, DecimalToHex
+    beq $t1, 5, DecimalToDecimalEm
     beq $t1, 7, fin
     bgt $t1,7,invalid
     blez $t1,invalid
@@ -133,13 +166,13 @@ menu1:
     move $t2, $t3
     li $t7 0
     li $t6 1 #indice en el string
-    bltz $t2 negativo
+    bltz $t2 negative
     
-    positivo:
+    positive:
         li $t4 '+'
         sb $t4 int_string($t7)
         b intToString2
-    negativo:
+    negative:
         li $t4 '-'
         sb $t4 int_string($t7)
         mul $t2 $t2 -1
@@ -163,7 +196,7 @@ intToString3:
     addi $t6 $t6 1
     beqz $t7 menu2
 
-    b intToString3
+    b intToString3	
         
  invalid:
     printString(invalid_option)
@@ -313,6 +346,92 @@ add_hex_to_result:
 invalid_hex_char:
     printString(invalid_option)    # Imprime mensaje de opción inválida
     j menu1                        # Retorna al menú principal
+    
+#----------------------------------------------------------------------------------------------------------------------
 
+#DECIMAl to Others
+DecimalToDecimal:
+	printString(newline)
+	printString(result)
+	printString(int_string)
+	b fin
+
+DecimalToBinary:
+    # Función para convertir un número decimal en una cadena a binario en complemento a 2
+	la $a0 int_string
+    # Cargar el signo (+ o -) de la cadena
+    lb $t2, 0($a0)
+    beq $t2, '+', skip_sign_check
+    li $t2, 1   # Si el signo es '-', establecer $t2 a 1 (negativo)
+    j sign_checked
+
+skip_sign_check:
+    li $t2, 0   # Si el signo es '+', establecer $t2 a 0 (positivo)
+
+sign_checked:
+    # Avanzar la dirección de la cadena para apuntar al primer dígito
+    addi $a0, $a0, 1
+
+    # Convertir la cadena de dígitos en un número entero en $t1
+    li $t1, 0    # Inicializar $t1 a 0 para acumular el número
+    li $t3, 10   # Factor de multiplicación para cada dígito decimal
+    li $t8, 0    # Inicializar contador de posición de dígito
+
+convert_loop:
+    lb $t4, 0($a0)     # Cargar el siguiente carácter de la cadena
+    beqz $t4, conversion_done  # Salir del bucle si encontramos el final de la cadena ('\0')
+    subi $t4, $t4, 48   # Convertir carácter ASCII a valor decimal (ascii '0' = 48)
+    mul $t1, $t1, $t3   # Multiplicar $t1 por 10 (factor de base 10)
+    add $t1, $t1, $t4   # Sumar el dígito convertido a $t1
+    addi $a0, $a0, 1    # Avanzar al siguiente carácter de la cadena
+    addi $t8, $t8, 1    # Incrementar contador de posición de dígito
+    j convert_loop      # Volver al inicio del bucle
+
+conversion_done:
+    # Verificar si el número es negativo y convertir a complemento a 2 si es necesario
+    beq $t2, 0, skip_negate    # Saltar si el número es positivo
+    xori $t1, $t1, 0xFFFFFFFF # Negar todos los bits del número
+    addi $t1, $t1, 1          # Sumar 1 para obtener el complemento a 2
+    j result_ready
+
+skip_negate:
+    # Aquí $t1 contiene el número entero positivo convertido
+
+result_ready:
+    # Almacenar el número convertido en binario en complemento a 2 en binary_result
+    li $t9, 31          # Contador para recorrer los 32 bits del resultado
+    la $t8, binary_result   # Dirección del resultado binario
+
+store_binary_loop:
+    andi $t3, $t1, 1    # Obtener el bit menos significativo
+    addi $t3, $t3, 48   # Convertir el bit a ASCII ('0' o '1')
+    sb $t3, 0($t8)      # Almacenar el bit en binary_result
+    srl $t1, $t1, 1     # Desplazar a la derecha para obtener el siguiente bit
+    addi $t8, $t8, 1    # Avanzar en la dirección del resultado binario
+    subi $t9, $t9, 1    # Decrementar el contador
+    bgez $t9, store_binary_loop   # Repetir hasta almacenar todos los bits
+
+    # Añadir terminador de cadena al final del resultado binario
+    li $t3, '\0'        # Carácter nulo
+    sb $t3, 0($t8)      # Almacenar el terminador nulo al final del resultado
+
+    # Añadir terminador de cadena al final del resultado binario
+    li $t3, '\0'        # Carácter nulo
+    sb $t3, 0($t8)      # Almacenar el terminador nulo al final del resultado  
+        
+	printString(newline)
+	printString(result)
+	ReverseString(binary_result)
+    	printString(output)
+		
+DecimalToOctal:
+	b fin
+	
+DecimalToHex:
+	b fin
+
+DecimalToDecimalEm:
+	b fin
+	
 fin:
     exit
