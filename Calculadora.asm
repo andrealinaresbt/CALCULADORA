@@ -83,7 +83,7 @@
     hexadecimal: .space 9 #Reserva 9 espacios para hexadecimal 8 + null
     int_string: .space 33 #Reserva 20 espacios para transformar un entero a string
     int_stringINV: .space 33 #Reserva 20 espacios para transformar un entero a string
-    binary_result : .space 33
+    resultStr : .space 33
     output: .space 33 #esta es la salida usada en el macro ReverseString
     
     #ASCIIZ
@@ -194,6 +194,7 @@ intToString3:
     lb $t9 int_stringINV($t7)
     sb $t9 int_string($t6)
     addi $t6 $t6 1
+    beq $s7 1 printOctal
     beqz $t7 menu2
 
     b intToString3	
@@ -400,7 +401,7 @@ skip_negate:
 result_ready:
     # Almacenar el número convertido en binario en complemento a 2 en binary_result
     li $t9, 31          # Contador para recorrer los 32 bits del resultado
-    la $t8, binary_result   # Dirección del resultado binario
+    la $t8, resultStr   # Dirección del resultado binario
 
 store_binary_loop:
     andi $t3, $t1, 1    # Obtener el bit menos significativo
@@ -418,14 +419,36 @@ store_binary_loop:
     # Añadir terminador de cadena al final del resultado binario
     li $t3, '\0'        # Carácter nulo
     sb $t3, 0($t8)      # Almacenar el terminador nulo al final del resultado  
-        
-	printString(newline)
-	printString(result)
-	ReverseString(binary_result)
-    	printString(output)
+       
+        b PrintResult
 		
 DecimalToOctal:
-	b fin
+	#li $t0 0
+	#lb $t1 int_string($t0)
+	#sb $t1 resultStr($t0)
+	#the decimal number is $t3
+    li $t6,0 #remainder
+    li $t7,0 #final octal number
+    li $t8,1 #placeInNumber
+    octalToDecimalLoopOutput:
+        rem $t6,$t3,8
+        div $t3,$t3,8
+        mul $t6,$t6,$t8
+        add $t7,$t7,$t6
+        mul $t8,$t8,10
+        bnez $t3,octalToDecimalLoopOutput
+
+	li $s7 1 #condicional para usar int_to_string sin ir al menu 2 luego
+	move $t3 $t5 #le asignamos a $t3 el valor del numero (con el cual trabaja intToString)
+	b intToString
+	
+printOctal:
+	printString(newline)
+	printString(result)
+	ReverseString(resultStr)
+    	printString(int_string)
+    	b fin
+	
 	
 DecimalToHex:
 	b fin
@@ -433,5 +456,12 @@ DecimalToHex:
 DecimalToDecimalEm:
 	b fin
 	
+PrintResult:
+	printString(newline)
+	printString(result)
+	ReverseString(resultStr)
+    	printString(output)
+    	b fin
+    	
 fin:
     exit
