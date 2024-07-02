@@ -264,16 +264,27 @@ inputOctalLogic:
 
     j octalToDecimal           # Salta a la función de conversión de octal a decimal
 
-# Función para convertir un número octal a decimal
+# Función para convertir un número octal a decimal, incluyendo números negativos
 octalToDecimal:
     la $t6, octal              # Carga la dirección del buffer que contiene el número octal
     li $t3, 0                  # Inicializa $t3 a cero para almacenar el resultado decimal
     li $t7, 0                  # Inicializa $t7 para el loop de conversión
+    li $t8, 0                  # Bandera para número negativo (0 = positivo, 1 = negativo)
+
+# Comprobar si es un número negativo
+    lb $t5, 0($t6)             # Carga el primer carácter del número octal (como ASCII)
+    beq $t5, '-', handle_negative # Si es '-', maneja el número como negativo
+
+    j octalToDecimalLoop       # Salta a la conversión normal si no es negativo
+
+handle_negative:
+    li $t8, 1                  # Establece la bandera de número negativo a 1
+    addi $t6, $t6, 1           # Avanza al siguiente carácter del string
 
 octalToDecimalLoop:
     lb $t5, 0($t6)             # Carga el valor actual del número octal (como ASCII)
-    beqz $t5, intToString      # Si es el final del string, salta a la conversión a string
-    beq $t5, 10, intToString   # Maneja el caso del salto de línea (ASCII 10)
+    beqz $t5, check_negative   # Si es el final del string, salta a la verificación de signo
+    beq $t5, 10, check_negative# Maneja el caso del salto de línea (ASCII 10)
 
     sub $t5, $t5, '0'          # Convierte el ASCII a número entero ('0' a '7')
     blt $t5, 0, invalid_octal_char   # Si el número es menor que 0, es inválido
@@ -282,13 +293,17 @@ octalToDecimalLoop:
     sll $t3, $t3, 3            # Shift left lógico por 3 para multiplicar por 8
     addu $t3, $t3, $t5         # Suma el dígito octal convertido al resultado decimal
 
-    addi $t6, $t6, 1           # Avanza al siguiente caracter del string
+    addi $t6, $t6, 1           # Avanza al siguiente carácter del string
     j octalToDecimalLoop       # Salta de nuevo al loop de conversión
 
+check_negative:
+    beqz $t8, intToString      # Si la bandera de negativo es 0, salta a la conversión a string
+    sub $t3, $zero, $t3        # Si es negativo, invierte el signo del resultado
+    j intToString              # Salta a la conversión a string
+
 invalid_octal_char:
-    printString(invalid_option) # Imprime mensaje de opción inválida
-    j menu1                     
-        
+    printString(invalid_option)# Imprime mensaje de opción inválida
+    j menu1                    # Retorna al menú principal        
 #Decimal a Hexadecimal
 inputHexLogic:
     printString(enter_hexadecimal) # Solicita al usuario que ingrese un número hexadecimal
@@ -300,15 +315,27 @@ inputHexLogic:
     j hexToDecimal                 # Salta a la función de conversión de hexadecimal a decimal
 
 # Función para convertir un número hexadecimal a decimal
+# Función para convertir un número hexadecimal a decimal, incluyendo números negativos
 hexToDecimal:
     la $t6, hexadecimal            # Carga la dirección del buffer que contiene el número hexadecimal
     li $t3, 0                      # Inicializa $t3 a cero para almacenar el resultado decimal
     li $t4, 0                      # Inicializa $t4 para el loop de conversión
+    li $t8, 0                      # Bandera para número negativo (0 = positivo, 1 = negativo)
+
+# Comprobar si es un número negativo
+    lb $t5, 0($t6)                 # Carga el primer carácter del número hexadecimal (como ASCII)
+    beq $t5, '-', handle_hex_negative # Si es '-', maneja el número como negativo
+
+    j hexToDecimalLoop             # Salta a la conversión normal si no es negativo
+
+handle_hex_negative:
+    li $t8, 1                      # Establece la bandera de número negativo a 1
+    addi $t6, $t6, 1               # Avanza al siguiente carácter del string
 
 hexToDecimalLoop:
     lb $t5, 0($t6)                 # Carga el valor actual del número hexadecimal (como ASCII)
-    beqz $t5, intToString          # Si es el final del string, salta a la conversión a string
-    beq $t5, 10, intToString       # Maneja el caso del salto de línea (ASCII 10)
+    beqz $t5, check_hex_negative   # Si es el final del string, salta a la verificación de signo
+    beq $t5, 10, check_hex_negative# Maneja el caso del salto de línea (ASCII 10)
 
     # Conversiones de ASCII a valores enteros
     li $t7, '0'                    # ASCII de '0'
@@ -318,8 +345,8 @@ hexToDecimalLoop:
     li $s1, 'a'                    # ASCII de 'a'
     li $s2, 'f'                    # ASCII de 'f'
 
-    blt $t5, $t7, invalid_hex_char # Si el caracter es menor que '0'
-    bgt $t5, $s2, invalid_hex_char # Si el caracter es mayor que 'f'
+    blt $t5, $t7, invalid_hex_char # Si el carácter es menor que '0'
+    bgt $t5, $s2, invalid_hex_char # Si el carácter es mayor que 'f'
 
     # Convierte caracteres '0'-'9'
     blt $t5, $t8, convert_hex_digit  # '0' a '9'
@@ -341,13 +368,19 @@ add_hex_to_result:
     sll $t3, $t3, 4                # Shift left lógico por 4 para multiplicar por 16
     or $t3, $t3, $t5               # Agrega el dígito hexadecimal convertido al resultado decimal
 
-    addi $t6, $t6, 1               # Avanza al siguiente caracter del string
+    addi $t6, $t6, 1               # Avanza al siguiente carácter del string
     j hexToDecimalLoop             # Salta de nuevo al loop de conversión
+
+check_hex_negative:
+    beqz $t8, intToString          # Si la bandera de negativo es 0, salta a la conversión a string
+    sub $t3, $zero, $t3            # Si es negativo, invierte el signo del resultado
+    j intToString                  # Salta a la conversión a string
 
 invalid_hex_char:
     printString(invalid_option)    # Imprime mensaje de opción inválida
     j menu1                        # Retorna al menú principal
-    
+
+
 #----------------------------------------------------------------------------------------------------------------------
 
 #DECIMAl to Others
