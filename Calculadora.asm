@@ -82,14 +82,16 @@
     octal: .space 12 #Reserva 12 espacios para el octal 11 + null
     hexadecimal: .space 9 #Reserva 9 espacios para hexadecimal 8 + null
     binaryBCD:   .space 33        # Buffer para almacenar la cadena binaria del número BCD empaquetado
-decimalEm:   .space 10        # Buffer para la representación decimal como string
-
+    decimalEm:   .space 10        # Buffer para la representación decimal como string
     int_string: .space 33 #Reserva 20 espacios para transformar un entero a string
     int_stringINV: .space 33 #Reserva 20 espacios para transformar un entero a string
     resultStr : .space 33
     output: .space 33 #esta es la salida usada en el macro ReverseString
+    signo_imprimir: .word 1010, 1101
     
     #ASCIIZ
+    SimboloMas: .asciiz "+"
+    SimboloMenos: .asciiz "-"
     newline: .asciiz "\n"
     menu_option: .asciiz "Select what you want to transform to: \n"
     enter_decimal: .asciiz "Enter a decimal number: "
@@ -107,7 +109,7 @@ decimalEm:   .space 10        # Buffer para la representación decimal como stri
     option7: .asciiz "7. Exit\n"
     arrow: .asciiz "----> "
     inputChooseNumber: .asciiz "Please enter the option of the type of number you wish to transform\n"
-    result: .asciiz "The result number is: "
+    result: .asciiz "The resultant number is: "
    
     
 
@@ -199,7 +201,6 @@ intToString3:
     lb $t9 int_stringINV($t7)
     sb $t9 int_string($t6)
     addi $t6 $t6 1
-    beq $s7 1 printOctal
     beqz $t7 menu2
 
     b intToString3	
@@ -444,7 +445,7 @@ callIntToString:
 DecimalToDecimal:
 	printString(newline)
 	printString(result)
-	printString(int_string)
+	printString(int_string) #ya estaba en decimal, por eso no se hace nada
 	b fin
 
 DecimalToBinary:
@@ -513,39 +514,84 @@ store_binary_loop:
         b PrintResult
 		
 DecimalToOctal:
-	#li $t0 0
-	#lb $t1 int_string($t0)
-	#sb $t1 resultStr($t0)
+
 	#the decimal number is $t3
     li $t6,0 #remainder
     li $t7,0 #final octal number
     li $t8,1 #placeInNumber
     octalToDecimalLoopOutput:
-        rem $t6,$t3,8
-        div $t3,$t3,8
-        mul $t6,$t6,$t8
-        add $t7,$t7,$t6
-        mul $t8,$t8,10
-        bnez $t3,octalToDecimalLoopOutput
+    	rem $t6, $t3, 8  # Calcula el resto de $t3 dividido por 8 y lo guarda en $t6.
+    	div $t3, $t3, 8  # Divide $t3 por 8 (actualiza $t3).
+    	mul $t6, $t6, $t8  # Multiplica el resto por el lugar en el número y guarda el resultado en $t6.
+    	add $t7, $t7, $t6  # Añade el valor calculado a $t7 (acumula el número octal).
+    	mul $t8, $t8, 10  # Multiplica el lugar en el número por 10 (para la siguiente posición decimal).
+    	bnez $t3, octalToDecimalLoopOutput  # Si $t3 no es cero, repite el bucle.
 
-	li $s7 1 #condicional para usar int_to_string sin ir al menu 2 luego
-	move $t3 $t5 #le asignamos a $t3 el valor del numero (con el cual trabaja intToString)
-	b intToString
-	
-printOctal:
+	lb $t3 int_string($zero) #signo del numero
 	printString(newline)
 	printString(result)
-	ReverseString(resultStr)
-    	printString(int_string)
+	beq $t3 '+' Dec2octPositivo
+	b printOctal
+	
+	Dec2octPositivo:
+		printString(SimboloMas)
+		b printOctal
+	
+printOctal:
+	print_int($t7)
     	b fin
 	
-	
 DecimalToHex:
-	b fin
+	la $a0 int_string
+    	# Cargar el signo (+ o -) de la cadena
+    	lb $t2, 0($a0)
+    	beq $t2, '+', PositiveCase
+    	b NegativeCase
 
+	PositiveCase:
+    		li $t2, '+'   # Si el signo es '+'
+    		b sign_checked2
+    	NegativeCase:
+    		li $t2, '-'   # Si el signo es '-'
+    		b sign_checked2
+
+	sign_checked2:
+		sb $t2 resultStr($zero)
+    
+	move $t2, $t3
+	li $t0, 8		# counter
+	la $t3, resultStr	# where answer will be stored
+	addi $t3 $t3 1		# skip sign place
+	
+	LoopDec2Hex:
+
+		beqz $t0, ExitHex #branch to exit if counter is equal to zero 
+		rol $t2, $t2, 4 # rotate 4 bits to the left
+		and $t4, $t2, 0xf # mask with 1111
+		ble $t4, 9, SumHex   # if less than or equal to nine, branch to sum
+		addi $t4, $t4, 55 # if greater than nine, add 55
+		
+		b EndHex
+
+	SumHex:
+		addi $t4, $t4, 48 # add 48 to result
+
+
+	EndHex:
+		sb $t4, 0($t3) #store Hex digit into result
+		addi $t3, $t3, 1 #incremet address counter
+		addi $t0, $t0, -1 #decrement loop counter
+	j LoopDec2Hex
+	
+	ExitHex:
+		printString(newline)
+		printString(result)
+		printString(resultStr)
+	b fin
+	
 DecimalToDecimalEm:
 	b fin
-	
+
 PrintResult:
 	printString(newline)
 	printString(result)
