@@ -81,6 +81,7 @@
     binary: .space 33 #Reserva 33 espacios para el binario 32 bits + null
     octal: .space 12 #Reserva 12 espacios para el octal 11 + null
     hexadecimal: .space 9 #Reserva 9 espacios para hexadecimal 8 + null
+    decimalEm: .space 5
     int_string: .space 33 #Reserva 20 espacios para transformar un entero a string
     int_stringINV: .space 33 #Reserva 20 espacios para transformar un entero a string
     resultStr : .space 33
@@ -93,6 +94,7 @@
     enter_binary: .asciiz "Enter a binary number: "
     enter_octal: .asciiz "Enter an octal number: "
     enter_hexadecimal: .asciiz "Enter a hexadecimal number: "
+    enter_decimalEm: .asciiz "Enter a hexadecimal number: "
     invalid_option: .asciiz "Invalid option\n"
     inputDecimal: .asciiz "1. Decimal\n"
     inputBinary: .asciiz "2. Binary\n"
@@ -130,7 +132,7 @@ menu1:
     beq $t0, 2, inputBinaryLogic
     beq $t0, 3, inputOctalLogic
     beq $t0, 4, inputHexLogic
-    #beq $t0, 5, inputDecimalEm
+    beq $t0, 5, inputDecimalEmLogic
     beq $t0, 7, fin
     blez $t0, invalid
     bgt $t0, 7, invalid
@@ -304,54 +306,56 @@ check_negative:
 invalid_octal_char:
     printString(invalid_option)# Imprime mensaje de opción inválida
     j menu1                    # Retorna al menú principal        
-#Decimal a Hexadecimal
+
 inputHexLogic:
-    printString(enter_hexadecimal) # Solicita al usuario que ingrese un número hexadecimal
-    li $v0, 8                      # Cargar el servicio del sistema para leer un string
-    la $a0, hexadecimal            # Dirección del buffer donde se almacenará el número hexadecimal
-    li $a1, 9                      # Longitud máxima del string a leer
+    printString(enter_hexadecimal)  # Solicita al usuario que ingrese un número hexadecimal
+    li $v0, 8                       # Cargar el servicio del sistema para leer un string
+    la $a0, hexadecimal             # Dirección del buffer donde se almacenará el número hexadecimal
+    li $a1, 9                       # Longitud máxima del string a leer
     syscall
 
-    j hexToDecimal                 # Salta a la función de conversión de hexadecimal a decimal
+    # Inicializar registros y banderas
+    la $t6, hexadecimal    # Puntero al buffer que contiene el número hexadecimal
+    li $t3, 0              # Inicializar $t3 a cero para almacenar el resultado decimal
+    li $t4, 0              # Inicializar $t4 para el loop de conversión
+    li $t8, 0              # Bandera para número negativo (0 = positivo, 1 = negativo)
+
+    # Comprobar si el número es negativo
+    lb $t5, 0($t6)         # Cargar el primer carácter del número hexadecimal (como ASCII)
+    beq $t5, '-', handle_negative_input  # Si es '-', manejar el número como negativo
+
+    j hexToDecimal     # Saltar a la conversión normal si no es negativo
+
+handle_negative_input:
+    li $t8, 1              # Establecer la bandera de número negativo a 1
+    addi $t6, $t6, 1       # Avanzar al siguiente carácter del string
+    j hexToDecimal         # Saltar a la conversión normal
 
 # Función para convertir un número hexadecimal a decimal
-# Función para convertir un número hexadecimal a decimal, incluyendo números negativos
 hexToDecimal:
-    la $t6, hexadecimal            # Carga la dirección del buffer que contiene el número hexadecimal
+    # la $t6, hexadecimal            # Carga la dirección del buffer que contiene el número hexadecimal
     li $t3, 0                      # Inicializa $t3 a cero para almacenar el resultado decimal
     li $t4, 0                      # Inicializa $t4 para el loop de conversión
-    li $t8, 0                      # Bandera para número negativo (0 = positivo, 1 = negativo)
-
-# Comprobar si es un número negativo
-    lb $t5, 0($t6)                 # Carga el primer carácter del número hexadecimal (como ASCII)
-    beq $t5, '-', handle_hex_negative # Si es '-', maneja el número como negativo
-
-    j hexToDecimalLoop             # Salta a la conversión normal si no es negativo
-
-handle_hex_negative:
-    li $t8, 1                      # Establece la bandera de número negativo a 1
-    addi $t6, $t6, 1               # Avanza al siguiente carácter del string
 
 hexToDecimalLoop:
     lb $t5, 0($t6)                 # Carga el valor actual del número hexadecimal (como ASCII)
-    beqz $t5, check_hex_negative   # Si es el final del string, salta a la verificación de signo
-    beq $t5, 10, check_hex_negative# Maneja el caso del salto de línea (ASCII 10)
+    beqz $t5, apply_sign           # Si es el final del string, salta a aplicar el signo
+    beq $t5, 10, apply_sign        # Maneja el caso del salto de línea (ASCII 10)
 
     # Conversiones de ASCII a valores enteros
     li $t7, '0'                    # ASCII de '0'
-    li $t8, '9'                    # ASCII de '9'
     li $t9, 'A'                    # ASCII de 'A'
     li $s0, 'F'                    # ASCII de 'F'
     li $s1, 'a'                    # ASCII de 'a'
     li $s2, 'f'                    # ASCII de 'f'
 
-    blt $t5, $t7, invalid_hex_char # Si el carácter es menor que '0'
-    bgt $t5, $s2, invalid_hex_char # Si el carácter es mayor que 'f'
+    blt $t5, $t7, invalid_hex_char # Si el caracter es menor que '0'
+    bgt $t5, $s2, invalid_hex_char # Si el caracter es mayor que 'f'
 
     # Convierte caracteres '0'-'9'
-    blt $t5, $t8, convert_hex_digit  # '0' a '9'
+    blt $t5, '9', convert_hex_digit # '0' a '9'
     # Convierte caracteres 'A'-'F'
-    blt $t5, $s1, convert_hex_upper  # 'A' a 'F'
+    blt $t5, $s1, convert_hex_upper # 'A' a 'F'
     # Convierte caracteres 'a'-'f'
     sub $t5, $t5, 87               # 'a' a 'f': ASCII - 87
 
@@ -368,17 +372,61 @@ add_hex_to_result:
     sll $t3, $t3, 4                # Shift left lógico por 4 para multiplicar por 16
     or $t3, $t3, $t5               # Agrega el dígito hexadecimal convertido al resultado decimal
 
-    addi $t6, $t6, 1               # Avanza al siguiente carácter del string
+    addi $t6, $t6, 1               # Avanza al siguiente caracter del string
     j hexToDecimalLoop             # Salta de nuevo al loop de conversión
 
-check_hex_negative:
-    beqz $t8, intToString          # Si la bandera de negativo es 0, salta a la conversión a string
-    sub $t3, $zero, $t3            # Si es negativo, invierte el signo del resultado
-    j intToString                  # Salta a la conversión a string
+apply_sign:
+    beqz $t8, finish_conversion    # Si la bandera negativa es 0, salta al final
+    sub $t3, $zero, $t3            # Aplica el signo negativo
+
+finish_conversion:
+    j intToString                  # Salta a la conversión del número a string
 
 invalid_hex_char:
     printString(invalid_option)    # Imprime mensaje de opción inválida
     j menu1                        # Retorna al menú principal
+
+    
+# Función para convertir decimal empaquetado a decimal
+inputDecimalEmLogic:
+    # Mostrar mensaje para ingresar el número decimal empaquetado
+    li $v0, 4             # Código para imprimir string
+    la $a0, enter_decimalEm  # Dirección del string a imprimir
+    syscall
+
+    # Leer el número decimal empaquetado en formato binario como cadena de caracteres
+    li $v0, 8             # Código para leer string
+    la $a0, decimalEm     # Dirección del buffer de entrada
+    li $a1, 5            # Longitud máxima del string a leer (incluyendo el null)
+    syscall
+
+    # Inicialización de variables
+    li $t1, 0             # Acumulador para el resultado decimal
+    li $t2, 31            # Contador para recorrer los bits del número empaquetado
+
+    # Loop para convertir de binario empaquetado a decimal
+convertir_loop:
+    # Extraer el bit actual del string
+    lb $t3, decimalEm    # Cargar byte actual del string en $t3
+    beqz $t3, fin_inputDecimalEmLogic  # Fin del string (null terminador)
+
+    # Convertir de ASCII a valor numérico (0 o 1)
+    subi $t3, $t3, '0'   # Convertir ASCII '0' o '1' a integer
+
+    # Acumular el valor
+    mul $t4, $t1, 10     # Multiplicar el acumulador actual por 10
+    addu $t1, $t4, $t3   # Sumar el bit actual al acumulador
+
+    # Actualizar el contador
+    subi $t2, $t2, 1     # Mover al siguiente bit
+
+    # Condición de salida del loop
+    bgez $t2, convertir_loop
+
+fin_inputDecimalEmLogic:
+    # El resultado final está en $t1
+    move $t3, $t1         # Mover el resultado a $t3
+    j intToString
 
 
 #----------------------------------------------------------------------------------------------------------------------
