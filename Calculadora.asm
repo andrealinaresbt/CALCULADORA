@@ -81,7 +81,9 @@
     binary: .space 33 #Reserva 33 espacios para el binario 32 bits + null
     octal: .space 12 #Reserva 12 espacios para el octal 11 + null
     hexadecimal: .space 9 #Reserva 9 espacios para hexadecimal 8 + null
-    decimalEm: .space 5
+    binaryBCD:   .space 33        # Buffer para almacenar la cadena binaria del número BCD empaquetado
+decimalEm:   .space 10        # Buffer para la representación decimal como string
+
     int_string: .space 33 #Reserva 20 espacios para transformar un entero a string
     int_stringINV: .space 33 #Reserva 20 espacios para transformar un entero a string
     resultStr : .space 33
@@ -94,7 +96,7 @@
     enter_binary: .asciiz "Enter a binary number: "
     enter_octal: .asciiz "Enter an octal number: "
     enter_hexadecimal: .asciiz "Enter a hexadecimal number: "
-    enter_decimalEm: .asciiz "Enter a hexadecimal number: "
+    enter_decimalEm: .asciiz "Enter a packed decimal number: "
     invalid_option: .asciiz "Invalid option\n"
     inputDecimal: .asciiz "1. Decimal\n"
     inputBinary: .asciiz "2. Binary\n"
@@ -165,6 +167,7 @@ menu1:
     
 #Conversiones a String
  intToString:
+    print_newline
     move $t2, $t3
     li $t7 0
     li $t6 1 #indice en el string
@@ -387,48 +390,54 @@ invalid_hex_char:
     j menu1                        # Retorna al menú principal
 
     
-# Función para convertir decimal empaquetado a decimal
+# Función para recibir un número BCD binario empaquetado
 inputDecimalEmLogic:
-    # Mostrar mensaje para ingresar el número decimal empaquetado
-    li $v0, 4             # Código para imprimir string
-    la $a0, enter_decimalEm  # Dirección del string a imprimir
+    printString(enter_decimalEm)   # Solicita al usuario que ingrese un número BCD binario
+    li $v0, 8                      # Cargar el servicio del sistema para leer un string
+    la $a0, binaryBCD              # Dirección del buffer donde se almacenará el número BCD binario
+    li $a1, 33                     # Longitud máxima del string a leer
     syscall
 
-    # Leer el número decimal empaquetado en formato binario como cadena de caracteres
-    li $v0, 8             # Código para leer string
-    la $a0, decimalEm     # Dirección del buffer de entrada
-    li $a1, 5            # Longitud máxima del string a leer (incluyendo el null)
-    syscall
+    la $t6, binaryBCD              # Puntero al buffer que contiene el número BCD binario
+    li $t3, 0                      # Inicializa $t3 a cero para almacenar el resultado decimal
+    li $t1, 0                      # Inicializa $t1 como el índice del buffer
+    li $t4, 0                      # Inicializa $t4 para acumular bits BCD
 
-    # Inicialización de variables
-    li $t1, 0             # Acumulador para el resultado decimal
-    li $t2, 31            # Contador para recorrer los bits del número empaquetado
+binaryBCDToDecimalLoop:
+    lb $t5, 0($t6)                 # Carga el valor actual del BCD binario (como ASCII)
+    beqz $t5, processDigits        # Si es el final del string, salta a procesar los dígitos
+    sub $t5, $t5, '0'              # Convierte '0'/'1' a 0/1
+    sll $t4, $t4, 1                # Desplaza $t4 a la izquierda (para el próximo bit)
+    or $t4, $t4, $t5               # Agrega el bit actual a $t4
+    addi $t1, $t1, 1               # Incrementa el índice del buffer
+    addi $t6, $t6, 1               # Avanza al siguiente carácter del string
+    b binaryBCDToDecimalLoop       # Repite el proceso
 
-    # Loop para convertir de binario empaquetado a decimal
-convertir_loop:
-    # Extraer el bit actual del string
-    lb $t3, decimalEm    # Cargar byte actual del string en $t3
-    beqz $t3, fin_inputDecimalEmLogic  # Fin del string (null terminador)
+processDigits:
+    li $t3, 0                      # Inicializa $t3 para almacenar el número decimal
+    li $t7, 28                     # Inicializa $t7 para manejar el shift de bits
 
-    # Convertir de ASCII a valor numérico (0 o 1)
-    subi $t3, $t3, '0'   # Convertir ASCII '0' o '1' a integer
+extractDigits:
+    blt $t7, -4, revSigno          # Si el índice es negativo, termina la extracción
+    srlv $t5, $t4, $t7             # Desplaza el valor acumulado para obtener 4 bits
+    andi $t5, $t5, 0xF             # Máscara para obtener los 4 bits
+    add $t3, $t3, $t5              # Añade el dígito al resultado
+    bgt $t7, 3, multiply           # Si hay más bits, multiplica por 10 para el próximo dígito
+    sub $t7, $t7, 4                # Decrementa el índice del bit
+    j extractDigits                # Continua la extracción
 
-    # Acumular el valor
-    mul $t4, $t1, 10     # Multiplicar el acumulador actual por 10
-    addu $t1, $t4, $t3   # Sumar el bit actual al acumulador
+multiply:
+    mul $t3, $t3, 10               # Multiplica el número acumulado por 10
+    sub $t7, $t7, 4                # Decrementa el índice del bit
+    j extractDigits                # Repite la extracción
 
-    # Actualizar el contador
-    subi $t2, $t2, 1     # Mover al siguiente bit
+revSigno:
+    sll $t5, $t4, 31               # Revisa el bit de signo
+    beqz $t5, callIntToString      # Si no es negativo, salta a intToString
+    mul $t3, $t3, -1               # Si es negativo, multiplica por -1
 
-    # Condición de salida del loop
-    bgez $t2, convertir_loop
-
-fin_inputDecimalEmLogic:
-    # El resultado final está en $t1
-    move $t3, $t1         # Mover el resultado a $t3
-    j intToString
-
-
+callIntToString:
+    j intToString                  # Llama a la función para convertir a string
 #----------------------------------------------------------------------------------------------------------------------
 
 #DECIMAl to Others
