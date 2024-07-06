@@ -87,7 +87,7 @@
     int_stringINV: .space 33 #Reserva 20 espacios para transformar un entero a string
     resultStr : .space 33
     output: .space 33 #esta es la salida usada en el macro ReverseString
-    signo_imprimir: .word 1010, 1101
+    pila: .space 7 #utilizada en decimal => decimal empaquetado
     
     #ASCIIZ
     SimboloMas: .asciiz "+"
@@ -537,9 +537,9 @@ DecimalToOctal:
 		printString(SimboloMas)
 		b printOctal
 	
-printOctal:
-	print_int($t7)
-    	b fin
+	printOctal:
+		print_int($t7)
+    		b fin
 	
 DecimalToHex:
 	la $a0 int_string
@@ -590,6 +590,86 @@ DecimalToHex:
 	b fin
 	
 DecimalToDecimalEm:
+	move $t0 $t3 # Entero en $t0
+
+	# En $t8= 0 => Negativo, $t8= 1 => Positivo
+	bltz $t0 D2DEcasoNegativo
+	b D2DEcasoPositivo
+
+	D2DEcasoPositivo:
+
+		li $t8 1
+		b D2DEfinCasosSignos
+
+	D2DEcasoNegativo:
+
+		li $t8 0
+		mul $t0 $t0 -1
+		b D2DEfinCasosSignos
+
+	D2DEfinCasosSignos:
+		# En $t1 cada uno de los digitos
+		# En $t2 posicion
+		li $t2 0
+		li $s1 10
+		
+	D2DEloopConstruccionPila:
+		beqz $t0 D2DEfinLoopConstruccionPila
+		div $t0 $s1	# Dividimos entre 10
+		mflo $t0	# Actualizamos $t0 con el cociente
+		mfhi $t1	# En $t1 colocamos el digito leido (resto de la division)
+		sb $t1 pila($t2)
+		addi $t2 $t2 1
+		b D2DEloopConstruccionPila
+	D2DEfinLoopConstruccionPila:
+		addi $t2 $t2 -1
+
+	# En $t1 quedara el decimal empaquetado
+	# Usaremos $t2 para recorrer la pila sacando cada Numero
+	# En $t3 vamos a cargar cada uno de los digitos de la pila
+	li $t1 0
+	
+	loopConversionBPD:
+
+		bltz $t2 finLoopConversionBPD
+
+		# Cargar Un Numero de la Pila
+		lb $t3 pila($t2)
+
+		# Colocar el valor de $t3 en $t1
+		# Desplazamos los bits de $t1 4 posiciones hacia la izquierda
+		sll $t1 $t1 4
+
+		# Colocamos los ultimos 4 bits de $t3 en $t1 haciendo un OR *
+		# * Hacemos un OR porque los primeros 28 bits de $t3 tenemos garantizado que van a valer 0
+		or $t1 $t3 $t1
+
+		# Mover el Puntero de la Pila un Espacio hacia la Izquierda
+		addi $t2 $t2 -1
+
+	b loopConversionBPD
+	finLoopConversionBPD:
+
+		# Colocar el Signo
+		sll $t1 $t1 4
+
+		beqz $t8 casoFlagNegativo
+		b casoFlagPositivo
+
+	casoFlagPositivo:
+
+		li $t9 0xC
+		add $t1 $t1 $t9
+		b finCasosFlagSignos
+
+	casoFlagNegativo:
+
+		li $t9 0xD
+		add $t1 $t1 $t9
+		b finCasosFlagSignos
+	finCasosFlagSignos:
+	
+#falta el print el numero esta en $t1 pero no se imprimirlo
 	b fin
 
 PrintResult:
