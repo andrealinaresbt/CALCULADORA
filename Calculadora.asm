@@ -216,8 +216,7 @@ intToString3:
 #De decimal a decimal
 inputDecimalLogic:
     printString(enter_decimal)
-    read_int($t2)
-    move $t3, $t2
+    read_int($t3)
     b intToString
    
 #Binario a decimal 
@@ -553,6 +552,7 @@ DecimalToHex:
     		b sign_checked2
     	NegativeCase:
     		li $t2, '-'   # Si el signo es '-'
+    		mul $t3 $t3 -1
     		b sign_checked2
 
 	sign_checked2:
@@ -588,90 +588,75 @@ DecimalToHex:
 		printString(result)
 		printString(resultStr)
 	b fin
-	
+# Función para convertir un número decimal en formato BCD
+# Asume que el número decimal está cargado previamente en $t3 y no desde la entrada del usuario
+
 DecimalToDecimalEm:
-	move $t0 $t3 # Entero en $t0
+    jal DDE
 
-	# En $t8= 0 => Negativo, $t8= 1 => Positivo
-	bltz $t0 D2DEcasoNegativo
-	b D2DEcasoPositivo
+    # Imprimir el número BCD empaquetado
+    li $v0, 4             # Servicio para imprimir cadena
+    la $a0, newline
+    syscall
+    jal printBCDLoop
 
-	D2DEcasoPositivo:
+    # Salir del programa
+    li $v0, 10            # Servicio para terminar el programa
+    syscall
 
-		li $t8 1
-		b D2DEfinCasosSignos
+DDE:
+    DecimalToBCD:
+  # Inicialización de registros necesarios
+li $t2, 0        # Byte actual para almacenar BCD
+li $t4, 0        # Contador de nibbles
 
-	D2DEcasoNegativo:
+# Bucle para convertir a BCD
+decimalToBCDLoop:
+    andi $t5, $t3, 0xF     # Obtiene el dígito menos significativo en formato BCD (los últimos 4 bits)
+    srl $t3, $t3, 4        # Desplaza $t3 hacia la derecha para el próximo dígito
+    sll $t2, $t2, 4        # Desplaza el contenido actual de $t2 hacia la izquierda para hacer espacio
+    or $t2, $t2, $t5       # Almacena el dígito en $t2
+    addi $t4, $t4, 1       # Incrementa el contador de nibbles
+    bnez $t3, decimalToBCDLoop  # Repite si $t3 no es cero
 
-		li $t8 0
-		mul $t0 $t0 -1
-		b D2DEfinCasosSignos
+# Asegura que el resultado esté empaquetado en 32 bits con '1111 0000' al final
+li $t6, 15               # '1111' en binario, representa el nibble superior en BCD
+sll $t6, $t6, 28         # Desplaza '1111 0000' a la posición inicial (28 bits)
 
-	D2DEfinCasosSignos:
-		# En $t1 cada uno de los digitos
-		# En $t2 posicion
-		li $t2 0
-		li $s1 10
-		
-	D2DEloopConstruccionPila:
-		beqz $t0 D2DEfinLoopConstruccionPila
-		div $t0 $s1	# Dividimos entre 10
-		mflo $t0	# Actualizamos $t0 con el cociente
-		mfhi $t1	# En $t1 colocamos el digito leido (resto de la division)
-		sb $t1 pila($t2)
-		addi $t2 $t2 1
-		b D2DEloopConstruccionPila
-	D2DEfinLoopConstruccionPila:
-		addi $t2 $t2 -1
+or $t2, $t2, $t6         # Combina el resultado BCD con '1111 0000' al final
 
-	# En $t1 quedara el decimal empaquetado
-	# Usaremos $t2 para recorrer la pila sacando cada Numero
-	# En $t3 vamos a cargar cada uno de los digitos de la pila
-	li $t1 0
-	
-	loopConversionBPD:
+move $t3, $t2            # Copia el resultado final de BCD de $t2 a $t3
 
-		bltz $t2 finLoopConversionBPD
+# Impresión del número BCD
+# Función para imprimir un número en formato BCD
+li $t6, 31               # Inicializa el índice de bits para BCD (31 para 32 bits menos 1)
 
-		# Cargar Un Numero de la Pila
-		lb $t3 pila($t2)
+printBCDLoop:
+    bltz $t6, endPrintBCD  # Termina si el índice de bits es menor que 0
 
-		# Colocar el valor de $t3 en $t1
-		# Desplazamos los bits de $t1 4 posiciones hacia la izquierda
-		sll $t1 $t1 4
+    srlv $t7, $t3, $t6     # Desplaza a la derecha para alinear el bit más significativo con el menos significativo
+    andi $t7, $t7, 1       # Obtiene el bit menos significativo
 
-		# Colocamos los ultimos 4 bits de $t3 en $t1 haciendo un OR *
-		# * Hacemos un OR porque los primeros 28 bits de $t3 tenemos garantizado que van a valer 0
-		or $t1 $t3 $t1
+    addi $t7, $t7, '0'     # Convierte el bit a su valor ASCII
+    move $a0, $t7          # Mueve el valor ASCII a $a0 para impresión
+    li $v0, 11             # Servicio para imprimir un carácter
+    syscall
 
-		# Mover el Puntero de la Pila un Espacio hacia la Izquierda
-		addi $t2 $t2 -1
+    # Inserta un espacio después de cada 4 bits para formatear como nibbles
+    rem $t8, $t6, 4
+    bnez $t8, skipSpace
+    li $a0, ' '            # Imprime un espacio
+    li $v0, 11             # Servicio para imprimir un carácter
+    syscall
 
-	b loopConversionBPD
-	finLoopConversionBPD:
+skipSpace:
+    subi $t6, $t6, 1       # Decrementa el índice de bits en 1
+    j printBCDLoop
 
-		# Colocar el Signo
-		sll $t1 $t1 4
-
-		beqz $t8 casoFlagNegativo
-		b casoFlagPositivo
-
-	casoFlagPositivo:
-
-		li $t9 0xC
-		add $t1 $t1 $t9
-		b finCasosFlagSignos
-
-	casoFlagNegativo:
-
-		li $t9 0xD
-		add $t1 $t1 $t9
-		b finCasosFlagSignos
-	finCasosFlagSignos:
-	
-#falta el print el numero esta en $t1 pero no se imprimirlo
-	b fin
-
+endPrintBCD:
+    li $v0, 10             # Servicio para terminar el programa
+    syscall
+    
 PrintResult:
 	printString(newline)
 	printString(result)
