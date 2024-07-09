@@ -552,6 +552,7 @@ DecimalToHex:
     		b sign_checked2
     	NegativeCase:
     		li $t2, '-'   # Si el signo es '-'
+    		mul $t3 $t3 -1
     		b sign_checked2
 
 	sign_checked2:
